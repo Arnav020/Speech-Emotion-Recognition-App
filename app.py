@@ -1,9 +1,7 @@
 # app.py
 import streamlit as st
 import numpy as np
-import sounddevice as sd
 import os
-from scipy.io.wavfile import write
 import librosa
 import tensorflow as tf
 import joblib
@@ -56,44 +54,22 @@ def plot_probabilities(probabilities, labels):
                 f"{prob:.2f}", va='center')
     st.pyplot(fig)
 
-def save_recording(audio, sample_rate=22050):
-    existing = [int(f.split(".")[0]) for f in os.listdir(DATA_DIR) if f.endswith(".wav") and f.split(".")[0].isdigit()]
-    next_id = max(existing, default=0) + 1
-    filename = f"{next_id:04d}.wav"
-    path = os.path.join(DATA_DIR, filename)
-    write(path, sample_rate, audio)
-    return path
-
-def record_audio(duration=3, sample_rate=22050):
-    st.info("🔴 Recording...")
-    audio = sd.rec(int(duration * sample_rate), samplerate=sample_rate, channels=1, dtype='float32')
-    sd.wait()
-    st.success("✅ Recording complete!")
-    return save_recording(audio, sample_rate)
-
 # UI 
 
 st.set_page_config(page_title="Speech Emotion Recognition 🎙️", layout="centered")
 st.title("🎤 Speech Emotion Recognition")
-st.write("Upload a `.wav` file or record your voice to detect the emotion.")
+st.write("Upload a `.wav` file to detect the emotion in speech.")
 
 if 'file_path' not in st.session_state:
     st.session_state.file_path = None
 
-# Input Options 
-option = st.radio("Choose input method:", ["Upload .wav file", "Record using microphone"])
-
-if option == "Upload .wav file":
-    uploaded_file = st.file_uploader("Upload Audio", type=["wav"])
-    if uploaded_file:
-        path = os.path.join(DATA_DIR, "uploaded.wav")
-        with open(path, "wb") as f:
-            f.write(uploaded_file.read())
-        st.session_state.file_path = path
-
-elif option == "Record using microphone":
-    if st.button("🎙️ Record Now"):
-        st.session_state.file_path = record_audio()
+# Upload only
+uploaded_file = st.file_uploader("📤 Upload Audio File (.wav)", type=["wav"])
+if uploaded_file:
+    path = os.path.join(DATA_DIR, "uploaded.wav")
+    with open(path, "wb") as f:
+        f.write(uploaded_file.read())
+    st.session_state.file_path = path
 
 # Show Results if File Exists 
 if st.session_state.file_path:
