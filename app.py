@@ -7,6 +7,7 @@ import tensorflow as tf
 import joblib
 import matplotlib.pyplot as plt
 import librosa.display
+import keras
 from utils import get_features  
 
 # SETUP 
@@ -14,7 +15,7 @@ DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
 # Load model and tools
-model = tf.keras.models.load_model("emotion_model.keras")
+model = keras.models.load_model("emotion_model.keras")
 encoder = joblib.load("label_encoder.pkl")
 scaler = joblib.load("standard_scaler.pkl")
 pca_handcrafted = joblib.load("pca_handcrafted.pkl")
