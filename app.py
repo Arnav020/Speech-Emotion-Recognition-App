@@ -83,3 +83,8 @@ if st.session_state.file_path:
         emotion, probs, labels = predict_emotion(st.session_state.file_path)
         st.success(f"🎯 **Predicted Emotion:** `{emotion}`")
         plot_probabilities(probs, labels)
+
+
+if __name__ == "__main__":
+    pass  # Streamlit runs top-down, so nothing is needed here
+
