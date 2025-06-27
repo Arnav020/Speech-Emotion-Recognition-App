@@ -69,29 +69,43 @@ def extract_features(data, sample_rate):
     return result
 
 # Wav2Vec2 Components (Lazy Load)
-
 @st.cache_resource
 def load_wav2vec():
     from transformers import Wav2Vec2Processor, Wav2Vec2Model
-    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
-    model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
-    return processor, model
+    try:
+        processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+        model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
+        return processor, model
+    except Exception as e:
+        st.error(f"❌ Failed to load Wav2Vec2 model: {e}")
+        raise
 
 # Final Feature Getter
-
 def get_features(path, emotion=None, pca=None, scaler=None, get_probs=False, model=None, encoder=None):
-    data, sr = librosa.load(path, duration=2.5, offset=0.6, sr=None)
+    try:
+        data, sr = librosa.load(path, duration=2.5, offset=0.6, sr=None)
+    except Exception as e:
+        st.error(f"❌ Error loading audio file: {e}")
+        raise
+
     if sr != 16000:
-        data_wav = librosa.resample(data, orig_sr=sr, target_sr=16000)
+        try:
+            data_wav = librosa.resample(data, orig_sr=sr, target_sr=16000)
+        except Exception as e:
+            st.error(f"❌ Error during resampling: {e}")
+            raise
     else:
         data_wav = data
 
-    # Load Wav2Vec2 on demand
-    processor, model_wav2vec = load_wav2vec()
-
-    with torch.no_grad():
-        input_values = processor(data_wav, sampling_rate=16000, return_tensors="pt", padding=True).input_values
-        w2v = model_wav2vec(input_values).last_hidden_state.mean(dim=1).squeeze().numpy()
+    # Load Wav2Vec2
+    try:
+        processor, model_wav2vec = load_wav2vec()
+        with torch.no_grad():
+            input_values = processor(data_wav, sampling_rate=16000, return_tensors="pt", padding=True).input_values
+            w2v = model_wav2vec(input_values).last_hidden_state.mean(dim=1).squeeze().numpy()
+    except Exception as e:
+        st.error(f"❌ Error extracting Wav2Vec2 embedding: {e}")
+        raise
 
     # Define augmentations 
     augmentations = [
@@ -111,10 +125,11 @@ def get_features(path, emotion=None, pca=None, scaler=None, get_probs=False, mod
             combined = scaler.transform([combined])[0] if scaler else combined
             features.append(combined)
         except Exception as e:
-            print(f"[AUG ERROR] {aug} → {e}")
+            st.warning(f"⚠️ Augmentation `{aug.__name__}` failed: {e}")
 
     features = np.array(features)
 
+    # Predict if requested
     if get_probs and model is not None and encoder is not None:
         try:
             probs = np.array([model.predict(np.expand_dims(f, axis=0))[0] for f in features])
@@ -122,7 +137,7 @@ def get_features(path, emotion=None, pca=None, scaler=None, get_probs=False, mod
             predicted_label = encoder.categories_[0][np.argmax(avg_probs)]
             return predicted_label, avg_probs, encoder.categories_[0]
         except Exception as e:
-            print(f"[PREDICTION ERROR] → {e}")
+            st.error(f"❌ Error during prediction: {e}")
             return "error", np.zeros(len(encoder.categories_[0])), encoder.categories_[0]
 
     return features

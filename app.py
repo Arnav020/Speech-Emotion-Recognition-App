@@ -1,5 +1,5 @@
 import os
-os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable TensorFlow GPU usage
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable GPU for TensorFlow
 
 import streamlit as st
 import numpy as np
@@ -13,11 +13,11 @@ from utils import get_features
 
 st.set_page_config(page_title="Speech Emotion Recognition 🎙️", layout="centered")
 
-# SETUP 
+# Setup
 DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Cached model and tools
+# Cache model and tools
 @st.cache_resource
 def load_model():
     return keras.models.load_model("emotion_model.keras")
@@ -39,19 +39,23 @@ encoder = load_encoder()
 scaler = load_scaler()
 pca_handcrafted = load_pca()
 
-# FUNCTIONS 
-
+# Predict function
 def predict_emotion(file_path):
-    emotion, avg_probs, labels = get_features(
-        file_path,
-        pca=pca_handcrafted,
-        scaler=scaler,
-        get_probs=True,
-        model=model,
-        encoder=encoder
-    )
-    return emotion, avg_probs, labels
+    try:
+        emotion, avg_probs, labels = get_features(
+            file_path,
+            pca=pca_handcrafted,
+            scaler=scaler,
+            get_probs=True,
+            model=model,
+            encoder=encoder
+        )
+        return emotion, avg_probs, labels
+    except Exception as e:
+        st.error(f"❌ Error during prediction: {str(e)}")
+        return "error", [], []
 
+# Plot function
 def plot_probabilities(probabilities, labels):
     fig, ax = plt.subplots()
     bars = ax.barh(labels, probabilities, color='skyblue')
@@ -63,15 +67,13 @@ def plot_probabilities(probabilities, labels):
                 f"{prob:.2f}", va='center')
     st.pyplot(fig)
 
-# UI 
-
+# UI
 st.title("🎤 Speech Emotion Recognition")
 st.write("Upload a `.wav` file to detect the emotion in speech.")
 
 if 'file_path' not in st.session_state:
     st.session_state.file_path = None
 
-# Upload only
 uploaded_file = st.file_uploader("📤 Upload Audio File (.wav)", type=["wav"])
 if uploaded_file:
     path = os.path.join(DATA_DIR, "uploaded.wav")
@@ -79,15 +81,13 @@ if uploaded_file:
         f.write(uploaded_file.read())
     st.session_state.file_path = path
 
-# Show Results if File Exists 
+# Predict UI
 if st.session_state.file_path:
     st.audio(st.session_state.file_path, format="audio/wav")
 
     if st.button("🚀 Predict Emotion"):
-        emotion, probs, labels = predict_emotion(st.session_state.file_path)
-        st.success(f"🎯 **Predicted Emotion:** `{emotion}`")
-        plot_probabilities(probs, labels)
-
-
-if __name__ == "__main__":
-    pass
+        with st.spinner("Analyzing emotion..."):
+            emotion, probs, labels = predict_emotion(st.session_state.file_path)
+        if emotion != "error":
+            st.success(f"🎯 **Predicted Emotion:** `{emotion}`")
+            plot_probabilities(probs, labels)
