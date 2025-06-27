@@ -11,6 +11,8 @@ import librosa.display
 import keras
 from utils import get_features  
 
+st.set_page_config(page_title="Speech Emotion Recognition 🎙️", layout="centered")
+
 # SETUP 
 DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
@@ -63,7 +65,6 @@ def plot_probabilities(probabilities, labels):
 
 # UI 
 
-st.set_page_config(page_title="Speech Emotion Recognition 🎙️", layout="centered")
 st.title("🎤 Speech Emotion Recognition")
 st.write("Upload a `.wav` file to detect the emotion in speech.")
 
