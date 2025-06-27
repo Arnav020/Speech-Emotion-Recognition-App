@@ -1,7 +1,8 @@
-# app.py
+import os
+os.environ["CUDA_VISIBLE_DEVICES"] = "-1"  # Disable TensorFlow GPU usage
+
 import streamlit as st
 import numpy as np
-import os
 import librosa
 import tensorflow as tf
 import joblib
@@ -14,11 +15,27 @@ from utils import get_features
 DATA_DIR = "Data"
 os.makedirs(DATA_DIR, exist_ok=True)
 
-# Load model and tools
-model = keras.models.load_model("emotion_model.keras")
-encoder = joblib.load("label_encoder.pkl")
-scaler = joblib.load("standard_scaler.pkl")
-pca_handcrafted = joblib.load("pca_handcrafted.pkl")
+# Cached model and tools
+@st.cache_resource
+def load_model():
+    return keras.models.load_model("emotion_model.keras")
+
+@st.cache_resource
+def load_encoder():
+    return joblib.load("label_encoder.pkl")
+
+@st.cache_resource
+def load_scaler():
+    return joblib.load("standard_scaler.pkl")
+
+@st.cache_resource
+def load_pca():
+    return joblib.load("pca_handcrafted.pkl")
+
+model = load_model()
+encoder = load_encoder()
+scaler = load_scaler()
+pca_handcrafted = load_pca()
 
 # FUNCTIONS 
 
@@ -32,17 +49,6 @@ def predict_emotion(file_path):
         encoder=encoder
     )
     return emotion, avg_probs, labels
-
-def plot_spectrogram(file_path):
-    y, sr = librosa.load(file_path, duration=2.5, offset=0.6)
-    S = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=128)
-    S_dB = librosa.power_to_db(S, ref=np.max)
-
-    fig, ax = plt.subplots(figsize=(8, 3))
-    img = librosa.display.specshow(S_dB, sr=sr, x_axis='time', y_axis='mel', ax=ax)
-    ax.set(title='Mel-frequency Spectrogram')
-    fig.colorbar(img, ax=ax, format="%+2.0f dB")
-    st.pyplot(fig)
 
 def plot_probabilities(probabilities, labels):
     fig, ax = plt.subplots()
@@ -76,9 +82,6 @@ if uploaded_file:
 if st.session_state.file_path:
     st.audio(st.session_state.file_path, format="audio/wav")
 
-    with st.expander("📊 Show Mel-Spectrogram"):
-        plot_spectrogram(st.session_state.file_path)
-
     if st.button("🚀 Predict Emotion"):
         emotion, probs, labels = predict_emotion(st.session_state.file_path)
         st.success(f"🎯 **Predicted Emotion:** `{emotion}`")
@@ -86,5 +89,4 @@ if st.session_state.file_path:
 
 
 if __name__ == "__main__":
-    pass  # Streamlit runs top-down, so nothing is needed here
-
+    pass

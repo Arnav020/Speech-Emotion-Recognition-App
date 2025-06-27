@@ -1,9 +1,8 @@
-# utils.py
 import numpy as np
 import librosa
 import torch
-from transformers import Wav2Vec2Processor, Wav2Vec2Model
 import joblib
+import streamlit as st
 
 # Augmentation Functions
 
@@ -69,29 +68,27 @@ def extract_features(data, sample_rate):
 
     return result
 
-# Wav2Vec2 Components (Load Once)
-processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
-model_wav2vec = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
+# Wav2Vec2 Components (Lazy Load)
+
+@st.cache_resource
+def load_wav2vec():
+    from transformers import Wav2Vec2Processor, Wav2Vec2Model
+    processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base")
+    model = Wav2Vec2Model.from_pretrained("facebook/wav2vec2-base")
+    return processor, model
 
 # Final Feature Getter
 
 def get_features(path, emotion=None, pca=None, scaler=None, get_probs=False, model=None, encoder=None):
-    """
-    path      : audio file path
-    emotion   : optional (for augmentation control)
-    pca       : trained PCA model for handcrafted features
-    scaler    : StandardScaler to normalize final vector
-    model     : (optional) classifier to predict from features
-    encoder   : LabelEncoder (used if get_probs=True)
-    """
-
     data, sr = librosa.load(path, duration=2.5, offset=0.6, sr=None)
     if sr != 16000:
         data_wav = librosa.resample(data, orig_sr=sr, target_sr=16000)
     else:
         data_wav = data
 
-    # Wav2Vec2 embedding 
+    # Load Wav2Vec2 on demand
+    processor, model_wav2vec = load_wav2vec()
+
     with torch.no_grad():
         input_values = processor(data_wav, sampling_rate=16000, return_tensors="pt", padding=True).input_values
         w2v = model_wav2vec(input_values).last_hidden_state.mean(dim=1).squeeze().numpy()
@@ -120,17 +117,12 @@ def get_features(path, emotion=None, pca=None, scaler=None, get_probs=False, mod
 
     if get_probs and model is not None and encoder is not None:
         try:
-            # Get softmax probabilities for each augmented version
             probs = np.array([model.predict(np.expand_dims(f, axis=0))[0] for f in features])
-
-            # Weighted average: original = 0.5, others = share 0.5
             avg_probs = probs[0] * 0.5 + np.sum(probs[1:], axis=0) * (0.5 / (len(probs) - 1))
-
             predicted_label = encoder.categories_[0][np.argmax(avg_probs)]
             return predicted_label, avg_probs, encoder.categories_[0]
-
         except Exception as e:
             print(f"[PREDICTION ERROR] → {e}")
             return "error", np.zeros(len(encoder.categories_[0])), encoder.categories_[0]
-        
+
     return features
